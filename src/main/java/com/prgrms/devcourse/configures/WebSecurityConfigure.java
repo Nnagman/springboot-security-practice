@@ -6,6 +6,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @Configuration
 @EnableWebSecurity
@@ -38,11 +39,17 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
                 .permitAll()
                 .and()
                 .logout()
+                .logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
                 .logoutSuccessUrl("/")
-                .permitAll()
+                .invalidateHttpSession(true)
+                .clearAuthentication(true)
                 .and()
                 .rememberMe()
                 .key("remember-me")
-                .tokenValiditySeconds(300);
+                .tokenValiditySeconds(300)
+                .and()
+                .requiresChannel()
+                .anyRequest()
+                .requiresSecure();
     }
 }
