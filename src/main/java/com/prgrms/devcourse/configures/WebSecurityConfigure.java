@@ -1,11 +1,13 @@
 package com.prgrms.devcourse.configures;
 
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @Configuration
@@ -47,9 +49,26 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
                 .rememberMe()
                 .key("remember-me")
                 .tokenValiditySeconds(300)
+                .alwaysRemember(false) // default : false
                 .and()
                 .requiresChannel()
                 .anyRequest()
-                .requiresSecure();
+                .requiresSecure()
+                .and()
+                .sessionManagement()
+                .sessionFixation().changeSessionId()
+                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                .invalidSessionUrl("/")
+                .maximumSessions(1)
+                .maxSessionsPreventsLogin(false)
+                .and()
+                .and()
+                .authorizeRequests()
+                .antMatchers("/me").hasAnyRole("USER", "ADMIN")
+                .antMatchers("/admin").access(
+                        "isFullyAuthenticated() and hasRole('ADMIN') and oddAdmin")
+                .anyRequest().permitAll()
+                .expressionHandler(new CustomWebSecurityExpressionHandler(new AuthenticationTrustResolverImpl(), "ROLE_"))
+                .and();
     }
 }
