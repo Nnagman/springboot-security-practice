@@ -16,6 +16,8 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.task.DelegatingSecurityContextAsyncTaskExecutor;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.access.expression.WebExpressionVoter;
@@ -62,14 +64,6 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
-    public AccessDecisionManager accessDecisionManager() {
-        List<AccessDecisionVoter<?>> decisionVoters = new ArrayList<>();
-        decisionVoters.add(new WebExpressionVoter());
-        decisionVoters.add(new OddAdminVoter(new AntPathRequestMatcher("/admin")));
-        return new UnanimousBased(decisionVoters);
-    }
-
-    @Bean
     public AccessDeniedHandler accessDeniedHandler() {
         return (request, response, e) -> {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -83,13 +77,17 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
         };
     }
 
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http.authorizeRequests()
                 .antMatchers("/me").hasAnyRole("USER", "ADMIN")
                 .antMatchers("/admin").access("isFullyAuthenticated() and hasRole('ADMIN')")
                 .anyRequest().permitAll()
-                .accessDecisionManager(accessDecisionManager())
                 .and()
                 .formLogin()
                 .defaultSuccessUrl("/")
