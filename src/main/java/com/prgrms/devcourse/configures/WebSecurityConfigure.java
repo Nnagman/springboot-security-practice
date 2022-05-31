@@ -1,36 +1,40 @@
 package com.prgrms.devcourse.configures;
 
+import com.prgrms.devcourse.jwt.Jwt;
+import com.prgrms.devcourse.jwt.JwtAuthenticationFilter;
+import com.prgrms.devcourse.user.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-import org.springframework.security.access.AccessDecisionManager;
-import org.springframework.security.access.AccessDecisionVoter;
-import org.springframework.security.access.vote.UnanimousBased;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.task.DelegatingSecurityContextAsyncTaskExecutor;
 import org.springframework.security.web.access.AccessDeniedHandler;
-import org.springframework.security.web.access.expression.WebExpressionVoter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 import javax.servlet.http.HttpServletResponse;
-import java.util.ArrayList;
-import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
     private final Logger log = LoggerFactory.getLogger(getClass());
+
+    private final JwtConfigure jwtConfigure;
+
+    public WebSecurityConfigure(JwtConfigure jwtConfigure) {
+        this.jwtConfigure = jwtConfigure;
+    }
 
     @Bean
     @Qualifier("myAsyncTaskExecutor")
@@ -46,16 +50,6 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
     public DelegatingSecurityContextAsyncTaskExecutor taskExecutor(
             @Qualifier("myAsyncTaskExecutor") ThreadPoolTaskExecutor delegate) {
         return new DelegatingSecurityContextAsyncTaskExecutor(delegate);
-    }
-
-    @Override
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.inMemoryAuthentication()
-                .withUser("user").password("{noop}user123").roles("USER")
-                .and()
-                .withUser("admin01").password("{noop}admin123").roles("ADMIN")
-                .and()
-                .withUser("admin02").password("{noop}admin123").roles("ADMIN");
     }
 
     @Override
@@ -82,48 +76,64 @@ public class WebSecurityConfigure extends WebSecurityConfigurerAdapter {
         return new BCryptPasswordEncoder();
     }
 
+    @Bean
+    public Jwt jwt() {
+        return new Jwt(
+                jwtConfigure.getIssuer(),
+                jwtConfigure.getClientSecret(),
+                jwtConfigure.getExpirySeconds()
+        );
+    }
+
+    public JwtAuthenticationFilter jwtAuthenticationFilter() {
+        Jwt jwt = getApplicationContext().getBean(Jwt.class);
+        return new JwtAuthenticationFilter(jwtConfigure.getHeader(), jwt);
+    }
+
     @Override
     protected void configure(HttpSecurity http) throws Exception {
-        http.authorizeRequests()
-                .antMatchers("/me").hasAnyRole("USER", "ADMIN")
-                .antMatchers("/admin").access("isFullyAuthenticated() and hasRole('ADMIN')")
+        http
+                .authorizeRequests()
+                .antMatchers("/api/user/me").hasAnyRole("USER", "ADMIN")
                 .anyRequest().permitAll()
                 .and()
+                /**
+                 * formLogin, csrf, headers, http-basic, rememberMe, logout filter 비활성화
+                 */
                 .formLogin()
-                .defaultSuccessUrl("/")
-                .permitAll()
-                .and()
-                /**
-                 * Basic Authentication 설정
-                 */
+                .disable()
+                .csrf()
+                .disable()
+                .headers()
+                .disable()
                 .httpBasic()
-                .and()
-                /**
-                 * remember me 설정
-                 */
+                .disable()
                 .rememberMe()
-                .rememberMeParameter("remember-me")
-                .tokenValiditySeconds(300)
-                .and()
-                /**
-                 * 로그아웃 설정
-                 */
+                .disable()
                 .logout()
-                .logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
-                .logoutSuccessUrl("/")
-                .invalidateHttpSession(true)
-                .clearAuthentication(true)
-                .and()
+                .disable()
                 /**
-                 * HTTP 요청을 HTTPS 요청으로 리다이렉트
+                 * Session 사용하지 않음
                  */
-                .requiresChannel()
-                .anyRequest().requiresSecure()
+                .sessionManagement()
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 .and()
                 /**
                  * 예외처리 핸들러
                  */
                 .exceptionHandling()
-                .accessDeniedHandler(accessDeniedHandler());
+                .accessDeniedHandler(accessDeniedHandler())
+                .and()
+                /**
+                 * JwtSecurityContextRepository 설정
+                 */
+                .securityContext()
+                .securityContextRepository(securityContextRepository())
+                .and()
+        /**
+         * jwtAuthenticationFilter 추가
+         */
+        //.addFilterAfter(jwtAuthenticationFilter(), SecurityContextPersistenceFilter.class)
+        ;
     }
 }
