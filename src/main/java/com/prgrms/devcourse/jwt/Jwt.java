@@ -34,7 +34,7 @@ public final class Jwt {
         this.jwtVerifier = require(algorithm).withIssuer(issuer).build();
     }
 
-    public String sing(Claims claims) {
+    public String sign(Claims claims) {
         Date now = new Date();
         Builder builder = create();
         builder.withIssuer(issuer);

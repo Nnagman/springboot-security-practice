@@ -56,6 +56,6 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
         String[] roles = authorities.stream()
                 .map(GrantedAuthority::getAuthority)
                 .toArray(String[]::new);
-        return jwt.sing(from(username, roles));
+        return jwt.sign(from(username, roles));
     }
 }
